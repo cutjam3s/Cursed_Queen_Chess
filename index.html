@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cursed Queen Chess</title>
+<link rel="stylesheet" href="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+<style>
+  body {
+    background: #1b1b1b;
+    color: #eee;
+    font-family: "Segoe UI", sans-serif;
+    text-align: center;
+    margin-top: 20px;
+  }
+  h2 { font-size: 28px; margin-bottom: 20px; }
+  #board {
+    width: 90vw;
+    max-width: 480px;
+    margin: auto;
+    border: 4px solid #444;
+    border-radius: 10px;
+    box-shadow: 0 0 15px #000;
+  }
+  #status { margin-top: 15px; font-size: 16px; }
+  #reset {
+    margin-top: 15px;
+    padding: 8px 16px;
+    border: none;
+    background: #5865f2;
+    color: white;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: 0.2s;
+  }
+  #reset:hover { background: #4752c4; }
+</style>
+</head>
+<body>
+
+<h2>♛ Cursed Queen Chess ♞</h2>
+<div id="board"></div>
+<div id="status">You play White — drag a piece to begin!</div>
+<button id="reset">Restart Game</button>
+
+<script src="https://cdn.jsdelivr.net/npm/chess.js@1.0.0/dist/chess.min.js"></script>
+<script src="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+
+<script>
+window.addEventListener('load', () => {
+    const game = new Chess();
+    let cursedQueens = new Set();
+
+    // Start without Queens
+    game.load('rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 0 1');
+
+    // Replace with Crowned Knights
+    let boardState = game.board();
+    boardState[7][3] = { type: 'n', color: 'w' };
+    boardState[0][3] = { type: 'n', color: 'b' };
+
+    function boardToFen(board) {
+        return board.map(row => {
+            let fenRow = '', empty = 0;
+            row.forEach(cell => {
+                if (cell === null) empty++;
+                else {
+                    if (empty > 0) { fenRow += empty; empty = 0; }
+                    fenRow += cell.color === 'w' ? cell.type.toUpperCase() : cell.type;
+                }
+            });
+            if (empty > 0) fenRow += empty;
+            return fenRow;
+        }).join('/') + ' w KQkq - 0 1';
+    }
+    game.load(boardToFen(boardState));
+
+    const board = Chessboard('board', {
+        draggable: true,
+        position: game.fen(),
+        onDrop: onDrop,
+        pieceTheme: piece => {
+            if (cursedQueens.has(piece))
+                return 'https://i.ibb.co/1X2pK8V/red-queen.png'; // Cursed Queen
+            if (piece === 'wn' || piece === 'bn')
+                return 'https://i.ibb.co/3R2kHJ4/crowned-knight.png'; // Crowned Knight
+            switch(piece) {
+                case 'wp': return 'https://i.ibb.co/TMqQp3N/wpawn.png';
+                case 'wr': return 'https://i.ibb.co/mJDxD13/wrook.png';
+                case 'wb': return 'https://i.ibb.co/8N4mh2L/wbishop.png';
+                case 'wq': return 'https://i.ibb.co/2gG6q0b/wqueen.png';
+                case 'wk': return 'https://i.ibb.co/9c6YkkG/wking.png';
+                case 'bp': return 'https://i.ibb.co/94nN7vC/bpawn.png';
+                case 'br': return 'https://i.ibb.co/vQ3sKsx/brook.png';
+                case 'bb': return 'https://i.ibb.co/V99Jp8L/bbishop.png';
+                case 'bq': return 'https://i.ibb.co/McR9y28/bqueen.png';
+                case 'bk': return 'https://i.ibb.co/hFKmYcZ/bking.png';
+                default: return `https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/merida/${piece}.png`;
+            }
+        }
+    });
+
+    document.getElementById('reset').onclick = () => location.reload();
+
+    function onDrop(source, target) {
+        if (game.turn() !== 'w') return 'snapback';
+        let move = game.move({ from: source, to: target, promotion: 'q' });
+        if (move === null) return 'snapback';
+        applyVariantRules(move);
+        updateBoard();
+        if (game.game_over()) {
+            setStatus("Game over!");
+            return;
+        }
+        setTimeout(makeAIMove, 600);
+    }
+
+    function makeAIMove() {
+        const moves = game.moves();
+        if (moves.length === 0) return;
+        const move = game.move(moves[Math.floor(Math.random() * moves.length)]);
+        applyVariantRules(move);
+        updateBoard();
+        if (game.game_over()) setStatus("Game over!");
+    }
+
+    function applyVariantRules(move) {
+        if (move.piece === 'n' && (move.from === 'd1' || move.from === 'd8') && move.captured) {
+            game.remove(move.to);
+            game.put({ type: 'q', color: move.color }, move.to);
+            setStatus(`👑 ${move.color === 'w' ? 'White' : 'Black'} Crowned Knight transforms into the Queen!`);
+        }
+        if (move.piece === 'q' && move.captured) {
+            cursedQueens.add(move.color + 'q');
+            setStatus(`🔥 ${move.color === 'w' ? 'White' : 'Black'} Queen becomes the Cursed Queen!`);
+        }
+        if (move.piece === 'q' && cursedQueens.has(move.color + 'q')) {
+            if (['a1','h1','a8','h8'].includes(move.to)) {
+                cursedQueens.delete(move.color + 'q');
+                setStatus(`💧 ${move.color === 'w' ? 'White' : 'Black'} Queen purified on ${move.to}!`);
+            }
+        }
+    }
+
+    function updateBoard() {
+        board.position(game.fen());
+    }
+
+    function setStatus(text) {
+        document.getElementById('status').textContent = text;
+    }
+});
+</script>
+
+</body>
+</html>
