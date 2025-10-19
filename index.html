@@ -44,7 +44,8 @@
 <div id="status">You play White — drag a piece to begin!</div>
 <button id="reset">Restart Game</button>
 
-<script src="https://cdn.jsdelivr.net/npm/chess.js@1.0.0/dist/chess.min.js"></script>
+<!-- Use a browser-friendly chess.js build that exposes the global Chess() constructor -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script src="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 
 <script>
@@ -81,11 +82,17 @@ window.addEventListener('load', () => {
         position: game.fen(),
         onDrop: onDrop,
         pieceTheme: piece => {
-            if (cursedQueens.has(piece))
+            // Normalize piece id to lowercase like 'wq', 'bn', etc.
+            // Chessboard passes IDs like 'wK','bQ','wN' etc — normalize to lowercase to match our set keys.
+            if (!piece) return '';
+            const key = piece.toLowerCase();
+
+            if (cursedQueens.has(key))
                 return 'https://i.ibb.co/1X2pK8V/red-queen.png'; // Cursed Queen
-            if (piece === 'wn' || piece === 'bn')
+            if (key === 'wn' || key === 'bn')
                 return 'https://i.ibb.co/3R2kHJ4/crowned-knight.png'; // Crowned Knight
-            switch(piece) {
+
+            switch(key) {
                 case 'wp': return 'https://i.ibb.co/TMqQp3N/wpawn.png';
                 case 'wr': return 'https://i.ibb.co/mJDxD13/wrook.png';
                 case 'wb': return 'https://i.ibb.co/8N4mh2L/wbishop.png';
@@ -96,7 +103,9 @@ window.addEventListener('load', () => {
                 case 'bb': return 'https://i.ibb.co/V99Jp8L/bbishop.png';
                 case 'bq': return 'https://i.ibb.co/McR9y28/bqueen.png';
                 case 'bk': return 'https://i.ibb.co/hFKmYcZ/bking.png';
-                default: return `https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/merida/${piece}.png`;
+                default:
+                    // fallback (some sets use lowercase ids): try to point to merida using the lowercase key
+                    return `https://raw.githubusercontent.com/lichess-org/lila/master/public/piece/merida/${key}.png`;
             }
         }
     });
@@ -126,15 +135,19 @@ window.addEventListener('load', () => {
     }
 
     function applyVariantRules(move) {
+        // Crowned Knight -> Queen when capturing from starting spot
         if (move.piece === 'n' && (move.from === 'd1' || move.from === 'd8') && move.captured) {
+            // remove the knight that just moved and replace with a queen
             game.remove(move.to);
             game.put({ type: 'q', color: move.color }, move.to);
             setStatus(`👑 ${move.color === 'w' ? 'White' : 'Black'} Crowned Knight transforms into the Queen!`);
         }
+        // If a queen captures, it becomes cursed
         if (move.piece === 'q' && move.captured) {
-            cursedQueens.add(move.color + 'q');
+            cursedQueens.add(move.color + 'q'); // 'wq' or 'bq'
             setStatus(`🔥 ${move.color === 'w' ? 'White' : 'Black'} Queen becomes the Cursed Queen!`);
         }
+        // If a cursed queen moves to a corner, purify it
         if (move.piece === 'q' && cursedQueens.has(move.color + 'q')) {
             if (['a1','h1','a8','h8'].includes(move.to)) {
                 cursedQueens.delete(move.color + 'q');
